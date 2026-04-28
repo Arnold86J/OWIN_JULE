@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException, Query, Request, Response
 from contextlib import asynccontextmanager
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
@@ -7,11 +7,28 @@ from fastapi_pagination import LimitOffsetPage, add_pagination
 from fastapi_pagination.ext.sqlalchemy import paginate
 
 from . import models, schemas, database, cache as cache_utils
+from fastapi_cache import FastAPICache
 from fastapi_cache.decorator import cache
+
+def key_builder(
+    func,
+    namespace: Optional[str] = "",
+    request: Optional[Request] = None,
+    response: Optional[Response] = None,
+    args: Optional[tuple] = None,
+    kwargs: Optional[dict] = None,
+):
+    from fastapi_cache import FastAPICache
+    prefix = FastAPICache.get_prefix()
+    cache_key = f"{prefix}:{namespace}:{func.__module__}:{func.__name__}:{args}:{kwargs}"
+    # Filter out common objects like 'db' or 'request' that shouldn't be part of the key
+    filtered_kwargs = {k: v for k, v in kwargs.items() if k not in ["db", "request", "response"]}
+    return f"{prefix}:{namespace}:{func.__module__}:{func.__name__}:{args}:{filtered_kwargs}"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await cache_utils.init_cache()
+    FastAPICache.init(FastAPICache.get_backend(), prefix="fastapi-cache", key_builder=key_builder)
     yield
 
 app = FastAPI(title="World Data Insight API", lifespan=lifespan)
