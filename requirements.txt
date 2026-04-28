@@ -2,3 +2,7 @@ pandas
 numpy
 sqlalchemy
 psycopg2-binary
+fastapi
+uvicorn
+pydantic
+fastapi-pagination
