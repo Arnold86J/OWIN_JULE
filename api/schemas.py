@@ -28,3 +28,7 @@ class IndicatorData(BaseModel):
     indicator_code: str
     country_iso: str
     data: List[DataPoint]
+
+class AnalysisPrompt(BaseModel):
+    system_prompt: str
+    user_prompt: str

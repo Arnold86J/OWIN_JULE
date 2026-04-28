@@ -6,7 +6,7 @@ from typing import List, Optional
 from fastapi_pagination import LimitOffsetPage, add_pagination
 from fastapi_pagination.ext.sqlalchemy import paginate
 
-from . import models, schemas, database, cache as cache_utils
+from . import models, schemas, database, cache as cache_utils, analytics
 from fastapi_cache import FastAPICache
 from fastapi_cache.decorator import cache
 
@@ -85,5 +85,45 @@ def get_indicator_data(
         "country_iso": iso_code,
         "data": data_points
     }
+
+@app.get("/data/{indicator_code}/analysis-prompt", response_model=schemas.AnalysisPrompt)
+@cache(expire=86400)
+def get_analysis_prompt(
+    indicator_code: str,
+    iso_code: str = Query(..., description="Country ISO alpha-3 code"),
+    start_year: Optional[int] = None,
+    end_year: Optional[int] = None,
+    db: Session = Depends(database.get_db)
+):
+    """Generates an LLM prompt for analyzing data trends."""
+    # 1. Fetch data (Reuse logic or call internal helper if refactored)
+    indicator = db.query(models.Indicator).filter(models.Indicator.code == indicator_code).first()
+    if not indicator:
+        raise HTTPException(status_code=404, detail="Indicator not found")
+
+    country = db.query(models.Country).filter(models.Country.iso_code == iso_code).first()
+    if not country:
+        raise HTTPException(status_code=404, detail="Country not found")
+
+    query = db.query(models.DataPoint).filter(
+        models.DataPoint.indicator_id == indicator.id,
+        models.DataPoint.country_id == country.id
+    )
+    if start_year is not None:
+        query = query.filter(models.DataPoint.year >= start_year)
+    if end_year is not None:
+        query = query.filter(models.DataPoint.year <= end_year)
+
+    data_points = query.order_by(models.DataPoint.year).all()
+
+    # Convert ORM objects to dicts for analytics module
+    data_dicts = [{"year": dp.year, "value": dp.value} for dp in data_points]
+
+    return analytics.generate_ai_analysis_prompt(
+        indicator_name=indicator.name,
+        unit=indicator.unit or "unité",
+        location=country.full_name,
+        data_points=data_dicts
+    )
 
 add_pagination(app)
