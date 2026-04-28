@@ -18,9 +18,7 @@ def key_builder(
     args: Optional[tuple] = None,
     kwargs: Optional[dict] = None,
 ):
-    from fastapi_cache import FastAPICache
     prefix = FastAPICache.get_prefix()
-    cache_key = f"{prefix}:{namespace}:{func.__module__}:{func.__name__}:{args}:{kwargs}"
     # Filter out common objects like 'db' or 'request' that shouldn't be part of the key
     filtered_kwargs = {k: v for k, v in kwargs.items() if k not in ["db", "request", "response"]}
     return f"{prefix}:{namespace}:{func.__module__}:{func.__name__}:{args}:{filtered_kwargs}"
