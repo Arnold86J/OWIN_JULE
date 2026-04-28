@@ -27,8 +27,8 @@ def key_builder(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await cache_utils.init_cache()
-    FastAPICache.init(FastAPICache.get_backend(), prefix="fastapi-cache", key_builder=key_builder)
+    # Initialize cache only once with all parameters
+    await cache_utils.init_cache(key_builder=key_builder)
     yield
 
 app = FastAPI(title="World Data Insight API", lifespan=lifespan)
