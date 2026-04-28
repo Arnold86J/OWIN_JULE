@@ -1,15 +1,23 @@
 from fastapi import FastAPI, Depends, HTTPException, Query
+from contextlib import asynccontextmanager
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from typing import List, Optional
 from fastapi_pagination import LimitOffsetPage, add_pagination
 from fastapi_pagination.ext.sqlalchemy import paginate
 
-from . import models, schemas, database
+from . import models, schemas, database, cache as cache_utils
+from fastapi_cache.decorator import cache
 
-app = FastAPI(title="World Data Insight API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await cache_utils.init_cache()
+    yield
+
+app = FastAPI(title="World Data Insight API", lifespan=lifespan)
 
 @app.get("/search", response_model=LimitOffsetPage[schemas.Indicator])
+@cache(expire=86400)
 def search_indicators(
     q: str = Query(..., description="Search query for indicator name or code"),
     db: Session = Depends(database.get_db)
@@ -23,6 +31,7 @@ def search_indicators(
     return paginate(query)
 
 @app.get("/data/{indicator_code}", response_model=schemas.IndicatorData)
+@cache(expire=86400)
 def get_indicator_data(
     indicator_code: str,
     iso_code: str = Query(..., description="Country ISO alpha-3 code"),

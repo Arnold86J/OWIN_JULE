@@ -1,7 +1,16 @@
 import pandas as pd
 import numpy as np
 import os
-from sqlalchemy import create_engine
+import asyncio
+from sqlalchemy import create_engine, text
+
+# Import cache invalidation if available
+try:
+    import sys
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+    from api.cache import clear_cache
+except ImportError:
+    clear_cache = None
 
 def load_data(filepath):
     """Loads World Bank CSV data."""
@@ -66,16 +75,56 @@ def save_to_csv(df, output_path):
     df.to_csv(output_path, index=False)
     print(f"Cleaned data saved to {output_path}")
 
-def load_to_postgres(df, db_url):
-    """Optional: Loads data into PostgreSQL."""
+def load_to_postgres(df, raw_df, db_url):
+    """Loads data into PostgreSQL, resolving dimensions and foreign keys."""
     try:
         engine = create_engine(db_url)
-        # Note: In a real scenario, we'd need to map iso_code/indicator_code
-        # to their respective IDs in the database.
-        # This implementation assumes table names and structure match for simplicity
-        # or requires a staging table approach.
-        df.to_sql('staging_data_points', engine, if_exists='replace', index=False)
-        print("Data successfully loaded to staging_data_points table.")
+
+        # 1. Upsert Countries
+        countries_df = raw_df[['Country Code', 'Country Name']].drop_duplicates()
+        countries_df.columns = ['iso_code', 'full_name']
+        countries_df.to_sql('countries_staging', engine, if_exists='replace', index=False)
+        with engine.begin() as conn:
+            conn.execute(text("""
+                INSERT INTO countries (iso_code, full_name)
+                SELECT iso_code, full_name FROM countries_staging
+                ON CONFLICT (iso_code) DO UPDATE SET full_name = EXCLUDED.full_name
+            """))
+
+        # 2. Upsert Indicators
+        indicators_df = raw_df[['Indicator Code', 'Indicator Name']].drop_duplicates()
+        indicators_df.columns = ['code', 'name']
+        indicators_df.to_sql('indicators_staging', engine, if_exists='replace', index=False)
+        with engine.begin() as conn:
+            conn.execute(text("""
+                INSERT INTO indicators (code, name)
+                SELECT code, name FROM indicators_staging
+                ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
+            """))
+
+        # 3. Resolve IDs and Load Data Points
+        # Load ID mappings
+        with engine.connect() as conn:
+            countries_map = pd.read_sql("SELECT id, iso_code FROM countries", conn)
+            indicators_map = pd.read_sql("SELECT id, code FROM indicators", conn)
+
+        df = df.merge(countries_map, left_on='iso_code', right_on='iso_code')
+        df = df.rename(columns={'id': 'country_id'})
+
+        df = df.merge(indicators_map, left_on='indicator_code', right_on='code')
+        df = df.rename(columns={'id': 'indicator_id'})
+
+        final_data = df[['country_id', 'indicator_id', 'year', 'value']]
+        final_data.to_sql('data_points_staging', engine, if_exists='replace', index=False)
+
+        with engine.begin() as conn:
+            conn.execute(text("""
+                INSERT INTO data_points (country_id, indicator_id, year, value)
+                SELECT country_id, indicator_id, year, value FROM data_points_staging
+                ON CONFLICT (country_id, indicator_id, year) DO UPDATE SET value = EXCLUDED.value
+            """))
+
+        print("Data successfully loaded into production tables.")
     except Exception as e:
         print(f"Error loading to Postgres: {e}")
 
@@ -103,6 +152,13 @@ if __name__ == "__main__":
     # 6. Database Load (Optional - enabled if DATABASE_URL is present)
     db_url = os.getenv("DATABASE_URL")
     if db_url:
-        load_to_postgres(final_df, db_url)
+        load_to_postgres(final_df, raw_df, db_url)
+
+    # 7. Clear Cache (Optional - enabled if Redis is used)
+    if clear_cache:
+        try:
+            asyncio.run(clear_cache())
+        except Exception as e:
+            print(f"Could not clear cache: {e}")
 
     print("ETL process completed.")
