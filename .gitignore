@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+*.class
+.env
+data/raw/*.csv
+data/processed/*.csv
+test.db
+.pytest_cache/

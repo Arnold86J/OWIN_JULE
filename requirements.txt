@@ -1,0 +1,10 @@
+pandas
+numpy
+sqlalchemy
+psycopg2-binary
+fastapi
+uvicorn
+pydantic
+fastapi-pagination
+fastapi-cache2[redis]
+redis

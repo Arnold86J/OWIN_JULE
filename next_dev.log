@@ -1,0 +1,58 @@
+
+> frontend@0.1.0 dev
+> next dev
+
+▲ Next.js 16.2.4 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.0.2:3000
+✓ Ready in 1774ms
+
+ GET /indicator/NY.GDP.MKTP.CD 200 in 4.8s (next.js: 4.1s, generate-params: 761ms, application-code: 690ms)
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <FloatingDelayGroup delay={{open:0, ...}} timeoutMs={400}>
+      <SidebarProvider>
+        <div data-slot="sidebar-wr..." style={{...}} className="group/side...">
+          <div className="flex min-h...">
+            <AppSidebar>
+            <div className="flex flex-...">
+              <AppHeader>
+                <header className="sticky top...">
+                  <div className="flex items...">
+                    <SidebarTrigger>
+                    <form onSubmit={function handleSearch} className="relative w...">
+                      <Search>
+                      <Input type="search" placeholder="Search ind..." className="pl-9 bg-mu..." value="" ...>
+                        <Input type="search" data-slot="input" className="h-8 w-full..." placeholder="Search ind..." ...>
+                          <FieldControl ref={null} type="search" data-slot="input" className="h-8 w-full..." ...>
+                            <input
+                              id="base-ui-_R_2iqlb_"
+                              disabled={false}
+                              name={undefined}
+                              ref={function}
+                              aria-labelledby={undefined}
+                              autoFocus={false}
+                              value=""
+                              onChange={function}
+                              onFocus={function}
+                              onBlur={function}
+                              onKeyDown={function}
+                              type="search"
+                              data-slot="input"
+                              placeholder="Search indicators (e.g. GDP, Population)..."
+                              className="h-8 w-full min-w-0 rounded-lg border border-input px-2.5 py-1 text-base trans..."
+-                             style={{caret-color:"transparent"}}
+                            >
+                  ...
+              ...
